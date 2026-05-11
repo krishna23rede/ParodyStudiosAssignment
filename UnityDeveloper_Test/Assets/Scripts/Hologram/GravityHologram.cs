@@ -20,16 +20,14 @@ public class GravityHologram : MonoBehaviour
         anim  = GetComponentInChildren<Animator>();
         gameObject.SetActive(false);
     }
-    public void UpdateAnimation(float speedHash, bool groundHash)
+    public void UpdateAnimation(float speedHash)
     {
-        anim.SetBool(GroundHash, groundHash);
         anim.SetBool(MoveHash, speedHash > 0.1f);
     }
     public void ShowPreview(Vector3 proposedGravityDir, Vector3 hitPoint)
     { 
         gameObject.SetActive(true);
  
-        // gameObject.transform.position = transform.position + proposedGravityDir * previewOffset;
         gameObject.transform.position = hitPoint;
  
         gameObject.transform.rotation = Quaternion.FromToRotation(Vector3.up, -proposedGravityDir);

@@ -30,14 +30,6 @@ public class ThirdPersonCamera : MonoBehaviour
 
         Vector3 up = -player.gravityDir;
 
-        // ── input orbit ─────────────────────────────
-        if (Input.GetMouseButton(1))
-        {
-            yaw   += Input.GetAxis("Mouse X") * mouseSensitivity;
-            pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
-            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
-        }
-
         // ── build gravity-aligned frame ─────────────
         Vector3 forward = Vector3.ProjectOnPlane(target.forward, up);
         if (forward.sqrMagnitude < 0.001f)

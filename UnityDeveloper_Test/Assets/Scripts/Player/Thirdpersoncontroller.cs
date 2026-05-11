@@ -254,7 +254,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         anim?.SetBool(MoveHash,   speed > 0.1f);
 
         if (hologram != null && hologram.isActive())
-            hologram.UpdateAnimation(speed, isGrounded);
+            hologram.UpdateAnimation(speed);
     }
 
 #if UNITY_EDITOR

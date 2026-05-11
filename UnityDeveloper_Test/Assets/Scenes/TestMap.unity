@@ -1250,8 +1250,8 @@ MonoBehaviour:
   player: {fileID: 937365039}
   distance: 3
   height: 2
-  positionSmooth: 10
-  rotationSmooth: 10
+  positionSmooth: 12
+  rotationSmooth: 12
   mouseSensitivity: 3
   minPitch: -30
   maxPitch: 70
