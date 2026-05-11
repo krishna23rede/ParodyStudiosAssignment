@@ -3707,7 +3707,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 937365036}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.834, y: 0, z: 0}
+  m_LocalPosition: {x: 0.94, y: 0.71, z: 0.51}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3753,6 +3753,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 5
   rotationSpeed: 10
+  hologram: {fileID: 1534329064}
   jumpForce: 5
   groundCheck: {fileID: 300789885}
   groundRadius: 0.2
@@ -3760,7 +3761,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   gravityStrength: 20
-  gravityTransitionSpeed: 8
   maxFallTime: 3
 --- !u!54 &937365040
 Rigidbody:
@@ -3784,7 +3784,7 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
+  m_UseGravity: 0
   m_IsKinematic: 0
   m_Interpolate: 1
   m_Constraints: 16
@@ -6585,7 +6585,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1399288fa9ae7124e8814f11c98ae6bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hologramRoot: {fileID: 1628940703}
   previewOffset: 1.5
 --- !u!4 &1534329065
 Transform:
@@ -6880,6 +6879,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1628940704}
+  - component: {fileID: 1628940705}
   m_Layer: 0
   m_Name: Exo Gray_Holo
   m_TagString: Untagged
@@ -6911,6 +6911,27 @@ Transform:
   m_Father: {fileID: 1534329065}
   m_RootOrder: -1
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+--- !u!95 &1628940705
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1628940703}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 297664b46ec58124a80a7e3b70da9fab, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &1645246335
 GameObject:
   m_ObjectHideFlags: 0
@@ -7444,7 +7465,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d2550597bc0095d43af67d3bc5a7639a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  timeLimit: 10
+  timeLimit: 300
   timerText: {fileID: 1766867275}
   cubeCountText: {fileID: 244364391}
   gameOverPanel: {fileID: 1238106578}

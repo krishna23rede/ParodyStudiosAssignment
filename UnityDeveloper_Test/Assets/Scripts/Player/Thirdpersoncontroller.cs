@@ -6,6 +6,7 @@ public class Thirdpersoncontroller : MonoBehaviour
     [Header("Movement")]
     public float moveSpeed = 5f;
     public float rotationSpeed = 10f;
+    public GravityHologram hologram;
  
     [Header("Jump")]
     public float jumpForce = 6f;
@@ -17,15 +18,14 @@ public class Thirdpersoncontroller : MonoBehaviour
  
     [Header("Custom Gravity")]
     public float gravityStrength = 20f;
-    public float gravityTransitionSpeed = 8f;   // how fast player body re-aligns
+    public float rayDistance = 5f;
  
     [Header("Fall-Death")]
     public float maxFallTime = 3f;
  
     private Rigidbody rb;
-    private Animator  anim;
+    private Animator anim;
     private Camera    mainCam;
-    private GravityHologram hologram;
     private Vector3 gravityDir = Vector3.down;
  
     private Vector3 pendingGravityDir = Vector3.down;
@@ -34,12 +34,18 @@ public class Thirdpersoncontroller : MonoBehaviour
  
     private bool  isGrounded;
     private float airTimer = 0f;
+
+    private Vector3 hitPoint;
+    private bool hasHit;    
+    private Vector3 currentDir = Vector3.zero;
+
+    private static readonly int GroundHash = Animator.StringToHash("IsGrounded");
+    private static readonly int MoveHash = Animator.StringToHash("IsMoving");
  
     void Awake()
     {
         rb       = GetComponent<Rigidbody>();
         anim     = GetComponentInChildren<Animator>();
-        hologram = GetComponent<GravityHologram>();
         mainCam  = Camera.main;
  
         rb.useGravity     = false;
@@ -55,6 +61,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         HandleGravityInput();
         TrackFallTime();
         DriveAnimations();
+        UpdateGravityPreview();
     }
  
     void FixedUpdate()
@@ -78,12 +85,26 @@ public class Thirdpersoncontroller : MonoBehaviour
     }
     void HandleGravityInput()
     {
-        Vector3 newPending = pendingGravityDir;
- 
-        if      (Input.GetKeyDown(KeyCode.UpArrow))    Debug.Log("Up arrow pressed");
-        else if (Input.GetKeyDown(KeyCode.DownArrow))  Debug.Log("Down arrow pressed");
-        else if (Input.GetKeyDown(KeyCode.LeftArrow))  Debug.Log("Left arrow pressed");
-        else if (Input.GetKeyDown(KeyCode.RightArrow)) Debug.Log("Right arrow pressed");
+        if (Input.GetKeyDown(KeyCode.Return))
+        {
+            hologram?.Hide();
+            currentDir = Vector3.zero;
+            return;
+        }
+
+        Vector3 up = transform.up;
+        Vector3 forward = Vector3.ProjectOnPlane(mainCam.transform.forward, up).normalized;
+        Vector3 right = Vector3.ProjectOnPlane(mainCam.transform.right, up).normalized;
+
+        if (Input.GetKeyDown(KeyCode.UpArrow))
+            currentDir  = forward;
+        else if (Input.GetKeyDown(KeyCode.DownArrow))
+            currentDir  = -forward;
+        else if (Input.GetKeyDown(KeyCode.RightArrow))
+            currentDir  = right;
+        else if (Input.GetKeyDown(KeyCode.LeftArrow))
+            currentDir  = -right;
+
     }
     void HandleMovement()
     {
@@ -110,7 +131,31 @@ public class Thirdpersoncontroller : MonoBehaviour
                              rotationSpeed * Time.fixedDeltaTime));
         }
     }
- 
+
+    void UpdateGravityPreview()
+    {
+        if (currentDir == Vector3.zero) return;
+
+        Vector3 offset = new Vector3(0f, 1f, 0f); 
+        Vector3 origin = transform.position + offset;
+
+        if (Physics.Raycast(origin, currentDir, out RaycastHit hit, rayDistance, groundMask))
+        {
+            pendingGravityDir = -hit.normal;
+            hasHit = true;
+            hitPoint = hit.point;
+
+            hologram?.ShowPreview(pendingGravityDir, hitPoint);
+            Debug.DrawRay(origin, currentDir * rayDistance, Color.green);
+        }
+        else
+        {
+            hasHit = false;
+            hologram?.Hide();
+            Debug.DrawRay(origin, currentDir * rayDistance, Color.red);
+        }
+    }
+
     void ApplyGravityVelocity()
     {
         if (!isGrounded)
@@ -140,23 +185,32 @@ public class Thirdpersoncontroller : MonoBehaviour
             Input.GetAxisRaw("Horizontal"),
             Input.GetAxisRaw("Vertical")).magnitude;
  
-        anim.SetFloat("Speed", speed, 0.1f, Time.deltaTime);
-        anim.SetBool("IsGrounded", isGrounded);
-        anim.SetBool("IsMoving", speed > 0.1f);
-    }
+        if(anim != null)
+        {
+            anim.SetBool(GroundHash, isGrounded);
+            anim.SetBool(MoveHash, speed > 0.1f);            
+        }
 
-    void OnDrawGizmosSelected()
+
+        if(hologram != null && hologram.isActive())
+        {
+            hologram.UpdateAnimation(speed, isGrounded);
+        }
+    }
+#if UNITY_EDITOR
+    void OnDrawGizmos()
     {
         if (groundCheck != null)
         {
             Gizmos.color = isGrounded ? Color.green : Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundRadius);
         }
- 
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawRay(transform.position, gravityDir * 2f);
- 
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawRay(transform.position, pendingGravityDir * 2.5f);
+
+        if (hasHit)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(hitPoint, 0.2f);
+        }
     }
+#endif
 }

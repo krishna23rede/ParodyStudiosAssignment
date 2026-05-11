@@ -3,36 +3,46 @@ using UnityEngine;
 public class GravityHologram : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Root of the hologram hierarchy (parent of body, head, arm parts, etc.)")]
-    public GameObject hologramRoot;
  
     [Tooltip("How far from the player to offset the hologram preview")]
     public float previewOffset = 1.5f;
  
     private SkinnedMeshRenderer[] parts;
+
+    private Animator anim;
+
+    private static readonly int GroundHash = Animator.StringToHash("IsGrounded");
+    private static readonly int MoveHash = Animator.StringToHash("IsMoving");
  
     void Awake()
     {
-        if (hologramRoot != null)
-            parts = hologramRoot.GetComponentsInChildren<SkinnedMeshRenderer>(includeInactive: true);
- 
-        hologramRoot?.SetActive(false);
+        parts = GetComponentsInChildren<SkinnedMeshRenderer>(includeInactive: true);
+        anim  = GetComponentInChildren<Animator>();
+        gameObject.SetActive(false);
     }
- 
-    public void ShowPreview(Vector3 proposedGravityDir)
+    public void UpdateAnimation(float speedHash, bool groundHash)
     {
-        if (hologramRoot == null) return;
+        anim.SetBool(GroundHash, groundHash);
+        anim.SetBool(MoveHash, speedHash > 0.1f);
+    }
+    public void ShowPreview(Vector3 proposedGravityDir, Vector3 hitPoint)
+    { 
+        gameObject.SetActive(true);
  
-        hologramRoot.SetActive(true);
+        // gameObject.transform.position = transform.position + proposedGravityDir * previewOffset;
+        gameObject.transform.position = hitPoint;
  
-        hologramRoot.transform.position = transform.position + proposedGravityDir * previewOffset;
- 
-        hologramRoot.transform.rotation = Quaternion.FromToRotation(Vector3.up, -proposedGravityDir);
+        gameObject.transform.rotation = Quaternion.FromToRotation(Vector3.up, -proposedGravityDir);
     }
  
     public void Hide()
     {
-        hologramRoot?.SetActive(false);
+        gameObject?.SetActive(false);
+    }
+
+    public bool isActive()
+    {
+        return gameObject.activeSelf;
     }
 }
  
