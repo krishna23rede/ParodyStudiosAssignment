@@ -4,45 +4,71 @@ using UnityEngine;
 
 public class ThirdPersonCamera : MonoBehaviour
 {
+    [Header("Target")]
     public Transform target;
+    public Thirdpersoncontroller player;
 
-    [Header("Camera Settings")]
-    public Vector3 offset = new Vector3(0f, 3f, -5f);
-    public float mouseSensitivity = 100f;
-    public float smoothSpeed = 10f;
+    [Header("Distance Settings")]
+    public float distance = 5f;
+    public float height = 2f;
 
-    private float yaw;
-    private float pitch;
+    [Header("Smoothing")]
+    public float positionSmooth = 12f;
+    public float rotationSmooth = 12f;
 
-    void Start()
-    {
-        Cursor.lockState = CursorLockMode.Locked;
-    }
+    [Header("Orbit")]
+    public float mouseSensitivity = 3f;
+    public float minPitch = -30f;
+    public float maxPitch = 70f;
+
+    float yaw;
+    float pitch = 20f;
 
     void LateUpdate()
     {
-        if (target == null) return;
+        if (!target || !player) return;
 
-        // Mouse Input
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        Vector3 up = -player.gravityDir;
 
-        yaw += mouseX;
-        pitch -= mouseY;
+        // ── input orbit ─────────────────────────────
+        if (Input.GetMouseButton(1))
+        {
+            yaw   += Input.GetAxis("Mouse X") * mouseSensitivity;
+            pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
+            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+        }
 
-        // Clamp vertical rotation
-        pitch = Mathf.Clamp(pitch, -30f, 60f);
+        // ── build gravity-aligned frame ─────────────
+        Vector3 forward = Vector3.ProjectOnPlane(target.forward, up);
+        if (forward.sqrMagnitude < 0.001f)
+            forward = Vector3.ProjectOnPlane(target.up, up);
 
-        // Rotation
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        forward.Normalize();
 
-        // Desired position
-        Vector3 desiredPosition = target.position + rotation * offset;
+        Quaternion gravityFrame = Quaternion.LookRotation(forward, up);
 
-        // Smooth movement
-        transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime);
+        // apply orbit inside gravity frame
+        Quaternion orbit =
+            Quaternion.AngleAxis(yaw, up) *
+            Quaternion.AngleAxis(pitch, Vector3.right);
 
-        // Look at player
-        transform.LookAt(target.position + Vector3.up * 1.5f);
+        Quaternion finalRotation = gravityFrame * orbit;
+
+        // ── smooth position follow ─────────────────
+        Vector3 desiredPosition =
+            target.position + finalRotation * new Vector3(0, height, -distance);
+
+        transform.position = Vector3.Lerp(
+            transform.position,
+            desiredPosition,
+            positionSmooth * Time.deltaTime
+        );
+
+        // ── smooth rotation ────────────────────────
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            finalRotation,
+            rotationSmooth * Time.deltaTime
+        );
     }
 }
