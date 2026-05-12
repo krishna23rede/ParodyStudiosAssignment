@@ -3803,6 +3803,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   maxFallTime: 4
+  cameraController: {fileID: 330585548}
   gravityDir: {x: 0, y: -1, z: 0}
 --- !u!54 &937365040
 Rigidbody:

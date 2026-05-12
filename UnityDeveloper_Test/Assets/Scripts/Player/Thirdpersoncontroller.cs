@@ -30,6 +30,8 @@ public class Thirdpersoncontroller : MonoBehaviour
     [Header("Fall-Death")]
     public float maxFallTime = 3f;
 
+    public ThirdPersonCamera cameraController;
+
     #endregion
 
     #region Private Fields
@@ -44,7 +46,7 @@ public class Thirdpersoncontroller : MonoBehaviour
     private Vector3 pendingGravityDir = Vector3.down;
 
     // Vertical gravity velocity
-    private float gravitySpeed = 0f;
+    private float gravityVelocity  = 0f;
 
     // Prevent movement during gravity switch
     private bool isSwitching = false;
@@ -95,21 +97,23 @@ public class Thirdpersoncontroller : MonoBehaviour
 
     void Update()
     {
-        CheckGround();
         HandleJump();
         HandleGravityInput();
         HandleFallTime();
         HandleAnimations();
-        UpdateGravityPreview();
     }
 
     void FixedUpdate()
     {
+        CheckGround();
+
         // Disable movement while switching gravity
         if (!isSwitching)
             HandleMovement();
 
         ApplyGravityVelocity();
+        
+        UpdateGravityPreview();
     }
 
     void CheckGround()
@@ -117,9 +121,9 @@ public class Thirdpersoncontroller : MonoBehaviour
         isGrounded = Physics.CheckSphere(groundCheck.position, groundRadius, groundMask);
 
         // Reset gravity velocity when grounded
-        if (isGrounded && gravitySpeed < 0f)
+        if (isGrounded && gravityVelocity > 0f)
         {
-            gravitySpeed = 0f;
+            gravityVelocity = 0f;
             if(isSwitchingUpsideDown) isSwitchingUpsideDown = false;
         }
             
@@ -145,7 +149,7 @@ public class Thirdpersoncontroller : MonoBehaviour
             // Normal grounded jump
             lastJumpTime = Time.time;
             if (isGrounded)
-                gravitySpeed = jumpForce;
+                gravityVelocity = -jumpForce;
         }
     }
 
@@ -154,7 +158,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         isSwitching = true;
 
         // Small boost during switch
-        gravitySpeed = jumpForce;
+        gravityVelocity = -jumpForce;
 
         Vector3 fromGrav = gravityDir;
         Quaternion fromRot = rb.rotation;
@@ -166,23 +170,20 @@ public class Thirdpersoncontroller : MonoBehaviour
         Vector3 currentFwd = transform.forward;
 
         // Project forward onto new surface
-        Vector3 projectedFwd =
-            Vector3.ProjectOnPlane(currentFwd, targetUp).normalized;
+        Vector3 projectedFwd = Vector3.ProjectOnPlane(currentFwd, targetUp).normalized;
 
         // Fallback if forward becomes invalid
         if (projectedFwd.sqrMagnitude < 0.001f)
         {
-            projectedFwd =
-                Vector3.ProjectOnPlane(transform.right, targetUp).normalized;
+            projectedFwd = Vector3.ProjectOnPlane(transform.right, targetUp).normalized;
         }
 
         // Target rotation
-        Quaternion toRot =
-            Quaternion.LookRotation(projectedFwd, targetUp);
+        Quaternion toRot =  Quaternion.LookRotation(projectedFwd, targetUp);
 
         // Prevent huge velocity spikes
-        float savedSpeed = gravitySpeed;
-        gravitySpeed = Mathf.Max(savedSpeed, 1.5f);
+        float savedSpeed = gravityVelocity;
+        gravityVelocity = Mathf.Max(savedSpeed, 1.5f);
 
         rb.velocity = Vector3.zero;
 
@@ -192,28 +193,16 @@ public class Thirdpersoncontroller : MonoBehaviour
         {
             elapsed += Time.deltaTime;
 
-            float t = switchCurve.Evaluate(
-                Mathf.Clamp01(elapsed / switchDuration)
-            );
+            float t = switchCurve.Evaluate(Mathf.Clamp01(elapsed / switchDuration));
 
             // Smooth gravity blend
-            gravityDir = Vector3.Slerp(
-                fromGrav,
-                targetGravDir,
-                t
-            ).normalized;
+            gravityDir = Vector3.Slerp(fromGrav, targetGravDir, t).normalized;
 
             // Smooth player rotation
-            rb.MoveRotation(
-                Quaternion.Slerp(fromRot, toRot, t)
-            );
+            rb.MoveRotation( Quaternion.Slerp(fromRot, toRot, t));
 
             // Reduce velocity during switch
-            rb.velocity = Vector3.Lerp(
-                rb.velocity,
-                Vector3.zero,
-                t
-            );
+            rb.velocity = Vector3.Lerp(rb.velocity, Vector3.zero, t);
 
             yield return null;
         }
@@ -225,7 +214,7 @@ public class Thirdpersoncontroller : MonoBehaviour
 
         rb.velocity = Vector3.zero;
 
-        gravitySpeed = 0f;
+        gravityVelocity  = 0f;
 
         isSwitching = false;
     }
@@ -235,8 +224,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         // Confirm gravity switch
         if (Input.GetKeyDown(KeyCode.Return))
         {
-            if (hasHit && !isSwitching)
-                StartCoroutine(SmoothGravitySwitch(pendingGravityDir));
+            if (hasHit && !isSwitching) StartCoroutine(SmoothGravitySwitch(pendingGravityDir));
 
             hologram?.Hide();
             currentDir = Vector3.zero;
@@ -286,33 +274,20 @@ public class Thirdpersoncontroller : MonoBehaviour
         Vector3 gravityUp = -gravityDir;
 
         // Camera forward adjusted to match player surface
-        Vector3 camForward =
-            Vector3.ProjectOnPlane(
-                mainCam.transform.forward,
-                gravityUp
-            ).normalized;
-
-        // Camera right adjusted to match player surface
-        Vector3 camRight =
-            Vector3.Cross(
-                gravityUp,
-                camForward
-            ).normalized;
+        Vector3 camForward = cameraController.CameraForwardOnPlane;
+        Vector3 camRight   = cameraController.CameraRightOnPlane;
 
         // Final movement direction
-        Vector3 moveDir =
-            (camForward * v + camRight * h).normalized;
+        Vector3 move = camForward * v + camRight * h;
+        Vector3 moveDir = move.sqrMagnitude > 1f ? move.normalized : move;
 
         // Preserve existing gravity velocity
-        float gravComponent =
-            Vector3.Dot(rb.velocity, gravityDir);
+        float gravComponent = Vector3.Dot(rb.velocity, gravityDir);
 
         // Horizontal movement velocity
-        Vector3 lateralVel =
-            moveDir * moveSpeed;
+        Vector3 lateralVel = moveDir * moveSpeed;
 
-        rb.velocity =
-            lateralVel + gravityDir * gravComponent;
+        rb.velocity = lateralVel + gravityDir * gravComponent;
 
         // Rotate player toward movement direction
         if (moveDir.sqrMagnitude > 0.01f)
@@ -338,12 +313,11 @@ public class Thirdpersoncontroller : MonoBehaviour
         if (isSwitching) return;
 
         // Accelerate downward while airborne
-        if (!isGrounded)
-            gravitySpeed -= gravityStrength * Time.fixedDeltaTime;
+        if (!isGrounded) gravityVelocity += gravityStrength * Time.fixedDeltaTime;
 
         // Keep horizontal movement while applying gravity
         Vector3 lateralVel = rb.velocity - gravityDir * Vector3.Dot(rb.velocity, gravityDir);
-        rb.velocity = lateralVel + gravityDir * (-gravitySpeed);
+        rb.velocity = lateralVel + gravityDir * gravityVelocity;
     }
 
     void HandleFallTime()
@@ -351,8 +325,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         if (!isGrounded)
         {
             airTimer += Time.deltaTime;
-            if (airTimer >= maxFallTime)
-                GameManager.Instance.TriggerGameOver(GameOverReason.Fell);
+            if (airTimer >= maxFallTime) GameManager.Instance.TriggerGameOver(GameOverReason.Fell);
         }
         else airTimer = 0f;
     }
