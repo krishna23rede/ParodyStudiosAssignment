@@ -7508,7 +7508,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d2550597bc0095d43af67d3bc5a7639a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  timeLimit: 300
+  timeLimit: 120
   timerText: {fileID: 1766867275}
   cubeCountText: {fileID: 244364391}
   gameOverPanel: {fileID: 1238106578}

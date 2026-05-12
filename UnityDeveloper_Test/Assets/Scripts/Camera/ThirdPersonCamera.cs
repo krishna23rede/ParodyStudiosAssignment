@@ -156,20 +156,24 @@ public class ThirdPersonCamera : MonoBehaviour
     private Quaternion GetPlayerGravityOrientation()
     {
         Transform bodyRef = playerBody != null ? playerBody : target;
- 
-        Vector3 playerUp      = bodyRef.up;
-        Vector3 playerForward = bodyRef.forward;
- 
-        if (Vector3.Cross(playerForward, playerUp).sqrMagnitude < 0.001f)
+
+        Vector3 playerUp = bodyRef.up;
+
+        // Keep previous rig forward but reproject onto new gravity plane
+        Vector3 rigForward =
+            Vector3.ProjectOnPlane(
+                _smoothRigOrientation * Vector3.forward,
+                playerUp
+            ).normalized;
+
+        // Fallback safety
+        if (rigForward.sqrMagnitude < 0.001f)
         {
-            // Fall back to any perpendicular direction.
-            playerForward = bodyRef.right;
+            rigForward =
+                Vector3.ProjectOnPlane(bodyRef.forward, playerUp).normalized;
         }
- 
-        // We use the overload LookRotation(forward, up) where 'up' is our gravity up.
-        return Quaternion.LookRotation(
-            Vector3.ProjectOnPlane(playerForward, playerUp).normalized,
-            playerUp);
+
+        return Quaternion.LookRotation(rigForward, playerUp);
     }
  
     //  Build and Apply Camera Transform
@@ -265,16 +269,22 @@ public class ThirdPersonCamera : MonoBehaviour
     // Snap Camera Behind Player
     public void SnapBehindPlayer()
     {
-        _yaw = 0f; 
+        Transform bodyRef = playerBody != null ? playerBody : target;
 
-        // Force the smoothed orientation to match immediately.
+        Vector3 flatForward =
+            Vector3.ProjectOnPlane(bodyRef.forward, bodyRef.up).normalized;
+
+        Vector3 localForward =
+            Quaternion.Inverse(_smoothRigOrientation) * flatForward;
+
+        _yaw = Mathf.Atan2(localForward.x, localForward.z) * Mathf.Rad2Deg;
+
         _smoothRigOrientation = GetPlayerGravityOrientation();
         _smoothPivotPos = GetDesiredPivotWorldPos();
         _currentArmLength = armLength;
- 
-        // Apply immediately so there's no lerp pop on the next frame.
+
         ApplyCameraTransform();
-    }
+    }   
  
     // Resets pitch to the supplied value (degrees, clamped to configured limits).
     public void SetPitch(float degrees)
