@@ -4,6 +4,8 @@ using System.Collections;
 [RequireComponent(typeof(Rigidbody))]
 public class Thirdpersoncontroller : MonoBehaviour
 {
+    #region Inspector Fields
+
     [Header("Movement")]
     public float moveSpeed = 5f;
     public float rotationSpeed = 10f;
@@ -28,39 +30,66 @@ public class Thirdpersoncontroller : MonoBehaviour
     [Header("Fall-Death")]
     public float maxFallTime = 3f;
 
-    [Header("Double-Tap Flip")]
+    #endregion
 
+    #region Private Fields
     private Rigidbody rb;
     private Animator anim;
     private Camera mainCam;
 
-    public Vector3 gravityDir = Vector3.down;  
+    // Current gravity direction
+    public Vector3 gravityDir = Vector3.down;
+
+    // Gravity direction selected for switching
     private Vector3 pendingGravityDir = Vector3.down;
-    private float gravitySpeed = 0f;           
 
-    private bool isSwitching = false; 
+    // Vertical gravity velocity
+    private float gravitySpeed = 0f;
 
+    // Prevent movement during gravity switch
+    private bool isSwitching = false;
+
+    // Used for upside-down jump switch
+    private bool isSwitchingUpsideDown = false;
+
+    // Ground check state
     private bool isGrounded;
+
+    // Timer used for fall death
     private float airTimer = 0f;
 
+    // Current direction used for gravity preview
     private Vector3 currentDir = Vector3.zero;
+
+    // Raycast hit info
     private Vector3 hitPoint;
     private bool hasHit;
-    private float lastJumpTime = -999f;  // initialized far in the past
 
+    // Prevent repeated jump spam
+    private float lastJumpTime = -999f;
+
+    // Animator hashes
     private static readonly int GroundHash = Animator.StringToHash("IsGrounded");
     private static readonly int MoveHash   = Animator.StringToHash("IsMoving");
 
-    // ───────────────────────────────────────────────────────────
+    #endregion
+
     void Awake()
     {
         rb      = GetComponent<Rigidbody>();
         anim    = GetComponentInChildren<Animator>();
         mainCam = Camera.main;
 
-        rb.useGravity             = false;
-        rb.freezeRotation         = true;
-        rb.interpolation          = RigidbodyInterpolation.Interpolate;
+         // Disable Unity gravity because we use custom gravity
+        rb.useGravity = false;
+
+        // Prevent physics rotation
+        rb.freezeRotation = true;
+
+        // Smooth rigidbody movement
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+        // Better collision handling
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
     }
 
@@ -69,91 +98,141 @@ public class Thirdpersoncontroller : MonoBehaviour
         CheckGround();
         HandleJump();
         HandleGravityInput();
-        TrackFallTime();
-        DriveAnimations();
+        HandleFallTime();
+        HandleAnimations();
         UpdateGravityPreview();
     }
 
     void FixedUpdate()
     {
-        if (!isSwitching) HandleMovement();
+        // Disable movement while switching gravity
+        if (!isSwitching)
+            HandleMovement();
+
         ApplyGravityVelocity();
     }
 
-    // ── ground ─────────────────────────────────────────────────
     void CheckGround()
     {
         isGrounded = Physics.CheckSphere(groundCheck.position, groundRadius, groundMask);
-        if (isGrounded && gravitySpeed < 0f) gravitySpeed = 0f;
+
+        // Reset gravity velocity when grounded
+        if (isGrounded && gravitySpeed < 0f)
+        {
+            gravitySpeed = 0f;
+            if(isSwitchingUpsideDown) isSwitchingUpsideDown = false;
+        }
+            
     }
 
     void HandleJump()
     {
-        if (isSwitching) return;
+        if (isSwitching || isSwitchingUpsideDown) return;
  
         if (Input.GetKeyDown(KeyCode.Space))
         {
             float timeSinceLast = Time.time - lastJumpTime;
  
+            // If player jumps in air -> invert gravity
             if (!isGrounded)
             {
                 lastJumpTime = -999f; 
+                isSwitchingUpsideDown = true;
                 StartCoroutine(SmoothGravitySwitch(-gravityDir));
                 return;
             }
- 
+
+            // Normal grounded jump
             lastJumpTime = Time.time;
             if (isGrounded)
                 gravitySpeed = jumpForce;
         }
     }
+
     IEnumerator SmoothGravitySwitch(Vector3 targetGravDir)
     {
         isSwitching = true;
 
+        // Small boost during switch
         gravitySpeed = jumpForce;
 
-        Vector3    fromGrav = gravityDir;
-        Quaternion fromRot  = rb.rotation;
+        Vector3 fromGrav = gravityDir;
+        Quaternion fromRot = rb.rotation;
 
-        Vector3 targetUp      = -targetGravDir;
-        Vector3 currentFwd    = transform.forward;
-        Vector3 projectedFwd  = Vector3.ProjectOnPlane(currentFwd, targetUp).normalized;
+        // New up direction after switch
+        Vector3 targetUp = -targetGravDir;
+
+        // Preserve forward direction
+        Vector3 currentFwd = transform.forward;
+
+        // Project forward onto new surface
+        Vector3 projectedFwd =
+            Vector3.ProjectOnPlane(currentFwd, targetUp).normalized;
+
+        // Fallback if forward becomes invalid
         if (projectedFwd.sqrMagnitude < 0.001f)
-            projectedFwd = Vector3.ProjectOnPlane(transform.right, targetUp).normalized;
+        {
+            projectedFwd =
+                Vector3.ProjectOnPlane(transform.right, targetUp).normalized;
+        }
 
-        Quaternion toRot = Quaternion.LookRotation(projectedFwd, targetUp);
+        // Target rotation
+        Quaternion toRot =
+            Quaternion.LookRotation(projectedFwd, targetUp);
 
+        // Prevent huge velocity spikes
         float savedSpeed = gravitySpeed;
-        gravitySpeed = Mathf.Max(savedSpeed, 1.5f);  
-        rb.velocity  = Vector3.zero;
+        gravitySpeed = Mathf.Max(savedSpeed, 1.5f);
+
+        rb.velocity = Vector3.zero;
 
         float elapsed = 0f;
 
         while (elapsed < switchDuration)
         {
             elapsed += Time.deltaTime;
-            float t = switchCurve.Evaluate(Mathf.Clamp01(elapsed / switchDuration));
 
-            gravityDir = Vector3.Slerp(fromGrav, targetGravDir, t).normalized;
+            float t = switchCurve.Evaluate(
+                Mathf.Clamp01(elapsed / switchDuration)
+            );
 
-            rb.MoveRotation(Quaternion.Slerp(fromRot, toRot, t));
+            // Smooth gravity blend
+            gravityDir = Vector3.Slerp(
+                fromGrav,
+                targetGravDir,
+                t
+            ).normalized;
 
-            rb.velocity = Vector3.Lerp(rb.velocity, Vector3.zero, t);
+            // Smooth player rotation
+            rb.MoveRotation(
+                Quaternion.Slerp(fromRot, toRot, t)
+            );
 
-            yield return null; 
+            // Reduce velocity during switch
+            rb.velocity = Vector3.Lerp(
+                rb.velocity,
+                Vector3.zero,
+                t
+            );
+
+            yield return null;
         }
 
+        // Final values
         gravityDir = targetGravDir;
+
         rb.MoveRotation(toRot);
-        rb.velocity  = Vector3.zero;
-        gravitySpeed = 0f;      
+
+        rb.velocity = Vector3.zero;
+
+        gravitySpeed = 0f;
 
         isSwitching = false;
     }
+
     void HandleGravityInput()
     {
-        // ENTER → confirm switch
+        // Confirm gravity switch
         if (Input.GetKeyDown(KeyCode.Return))
         {
             if (hasHit && !isSwitching)
@@ -164,10 +243,12 @@ public class Thirdpersoncontroller : MonoBehaviour
             return;
         }
 
+        // Camera directions aligned to player surface
         Vector3 up      = transform.up;
         Vector3 forward = Vector3.ProjectOnPlane(mainCam.transform.forward, up).normalized;
         Vector3 right   = Vector3.ProjectOnPlane(mainCam.transform.right,   up).normalized;
 
+        // Select gravity preview direction
         if      (Input.GetKeyDown(KeyCode.UpArrow))    currentDir =  forward;
         else if (Input.GetKeyDown(KeyCode.DownArrow))  currentDir = -forward;
         else if (Input.GetKeyDown(KeyCode.RightArrow)) currentDir =  right;
@@ -180,9 +261,9 @@ public class Thirdpersoncontroller : MonoBehaviour
 
         Vector3 origin = transform.position + transform.up * 1f;
 
+        // Check nearby surface
         if (Physics.Raycast(origin, currentDir, out RaycastHit hit, rayDistance, groundMask))
         {
-            // pendingGravityDir = -hit.normal;
             pendingGravityDir = -hit.normal;
             hasHit   = true;
             hitPoint = hit.point;
@@ -201,39 +282,71 @@ public class Thirdpersoncontroller : MonoBehaviour
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
 
+        // Player's local up direction
         Vector3 gravityUp = -gravityDir;
 
-        // build stable camera forward relative to gravity
-        Vector3 camForward = Vector3.ProjectOnPlane(mainCam.transform.forward, gravityUp).normalized;
-        Vector3 camRight   = Vector3.Cross(gravityUp, camForward).normalized;
+        // Camera forward adjusted to match player surface
+        Vector3 camForward =
+            Vector3.ProjectOnPlane(
+                mainCam.transform.forward,
+                gravityUp
+            ).normalized;
 
-        Vector3 moveDir = (camForward * v + camRight * h).normalized;
+        // Camera right adjusted to match player surface
+        Vector3 camRight =
+            Vector3.Cross(
+                gravityUp,
+                camForward
+            ).normalized;
 
-        float   gravComponent = Vector3.Dot(rb.velocity, gravityDir);
-        Vector3 lateralVel    = moveDir * moveSpeed;
+        // Final movement direction
+        Vector3 moveDir =
+            (camForward * v + camRight * h).normalized;
 
-        rb.velocity = lateralVel + gravityDir * gravComponent;
+        // Preserve existing gravity velocity
+        float gravComponent =
+            Vector3.Dot(rb.velocity, gravityDir);
 
+        // Horizontal movement velocity
+        Vector3 lateralVel =
+            moveDir * moveSpeed;
+
+        rb.velocity =
+            lateralVel + gravityDir * gravComponent;
+
+        // Rotate player toward movement direction
         if (moveDir.sqrMagnitude > 0.01f)
         {
-            Quaternion targetRot = Quaternion.LookRotation(moveDir, gravityUp);
-            rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRot,
-                            rotationSpeed * Time.fixedDeltaTime));
+            Quaternion targetRot =
+                Quaternion.LookRotation(
+                    moveDir,
+                    gravityUp
+                );
+
+            rb.MoveRotation(
+                Quaternion.Slerp(
+                    rb.rotation,
+                    targetRot,
+                    rotationSpeed * Time.fixedDeltaTime
+                )
+            );
         }
     }
 
     void ApplyGravityVelocity()
     {
-        if (isSwitching) return;   // coroutine owns velocity during transition
+        if (isSwitching) return;
 
+        // Accelerate downward while airborne
         if (!isGrounded)
             gravitySpeed -= gravityStrength * Time.fixedDeltaTime;
 
+        // Keep horizontal movement while applying gravity
         Vector3 lateralVel = rb.velocity - gravityDir * Vector3.Dot(rb.velocity, gravityDir);
         rb.velocity = lateralVel + gravityDir * (-gravitySpeed);
     }
 
-    void TrackFallTime()
+    void HandleFallTime()
     {
         if (!isGrounded)
         {
@@ -244,7 +357,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         else airTimer = 0f;
     }
 
-    void DriveAnimations()
+    void HandleAnimations()
     {
         float speed = new Vector2(
             Input.GetAxisRaw("Horizontal"),
@@ -253,6 +366,7 @@ public class Thirdpersoncontroller : MonoBehaviour
         anim?.SetBool(GroundHash, isGrounded);
         anim?.SetBool(MoveHash,   speed > 0.1f);
 
+        // Update hologram animation
         if (hologram != null && hologram.isActive())
             hologram.UpdateAnimation(speed);
     }
