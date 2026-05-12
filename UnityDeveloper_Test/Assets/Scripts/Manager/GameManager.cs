@@ -54,7 +54,7 @@ public class GameManager : MonoBehaviour
         totalCubes = allCubes.Length;
 
         // Hide game over UI
-        gameOverPanel?.SetActive(false);
+        if(gameOverPanel) gameOverPanel.SetActive(false);
 
         UpdateCubeUI();
     }
@@ -158,5 +158,9 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(
             SceneManager.GetActiveScene().buildIndex
         );
+    }
+    public void QuitGame()
+    {
+        Application.Quit();
     }
 }
